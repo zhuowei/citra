@@ -24,3 +24,7 @@ src/common/scm_rev.cpp
 # Windows global filetypes
 Thumbs.db
 
+# Android
+local.properties
+src/android/bin
+src/android/gen

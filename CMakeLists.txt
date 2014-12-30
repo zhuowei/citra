@@ -52,8 +52,19 @@ endif()
 # Include bundled CMake modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/externals/cmake-modules")
 
-find_package(OpenGL REQUIRED)
-include_directories(${OPENGL_INCLUDE_DIR})
+if(NOT ANDROID)
+    find_package(OpenGL REQUIRED)
+    include_directories(${OPENGL_INCLUDE_DIR})
+endif()
+
+if (ANDROID)
+    message("Using static iconv from Externals")
+    include_directories(externals/libiconv-1.14/include)
+    add_subdirectory(externals/libiconv-1.14)
+    list(APPEND LIBS iconv)
+
+    add_definitions(-D_M_GENERIC)
+endif()
 
 option(ENABLE_GLFW "Enable the GLFW frontend" ON)
 if (ENABLE_GLFW)

@@ -26,7 +26,10 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#ifndef __arm__
 #include <xmmintrin.h> // data_types__m128.cpp
+#endif
 
 typedef std::uint8_t  u8;  ///< 8-bit unsigned byte
 typedef std::uint16_t u16; ///< 16-bit unsigned short
@@ -67,6 +70,7 @@ union t64 {
     u8  _u8[8];             ///< 8-bit unsigned char(s)
 };
 
+#ifndef __arm__
 /// Union for fast 128-bit type casting
 union t128 {
     struct
@@ -76,6 +80,7 @@ union t128 {
     };
     __m128  a;              ///< 128-bit floating point (__m128 maps to the XMM[0-7] registers)
 };
+#endif
 
 namespace Common {
 /// Rectangle data structure
