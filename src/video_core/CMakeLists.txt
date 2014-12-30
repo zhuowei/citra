@@ -1,5 +1,4 @@
 set(SRCS
-            renderer_opengl/generated/gl_3_2_core.c
             renderer_opengl/renderer_opengl.cpp
             renderer_opengl/gl_shader_util.cpp
             debug_utils/debug_utils.cpp
@@ -11,6 +10,13 @@ set(SRCS
             vertex_shader.cpp
             video_core.cpp
             )
+
+if(NOT ANDROID)
+set(SRCS
+             renderer_opengl/generated/gl_3_2_core.c
+             ${SRCS}
+             )
+endif()
 
 set(HEADERS
             debug_utils/debug_utils.h
