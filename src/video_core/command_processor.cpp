@@ -13,11 +13,15 @@
 
 #include "debug_utils/debug_utils.h"
 
+#include <cstdio>
+
 namespace Pica {
 
 Regs registers;
 
 namespace CommandProcessor {
+
+static const int kVertexCacheSize = 16;
 
 static int float_regs_counter = 0;
 
@@ -26,6 +30,11 @@ static u32 uniform_write_buffer[4];
 // Used for VSLoadProgramData and VSLoadSwizzleData
 static u32 vs_binary_write_offset = 0;
 static u32 vs_swizzle_write_offset = 0;
+
+struct VertexCacheItem {
+    unsigned int in;
+    VertexShader::OutputVertex out;
+};
 
 static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
 
@@ -97,6 +106,10 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
             const u16* index_address_16 = (u16*)index_address_8;
             bool index_u16 = index_info.format != 0;
 
+            VertexCacheItem caches[kVertexCacheSize];
+            // from https://github.com/laanwj/mesa/blob/master/src/mesa/vbo/vbo_split_copy.c
+            for (int i = 0; i < kVertexCacheSize; i++) caches[i].in = ~0;
+
             DebugUtils::GeometryDumper geometry_dumper;
             PrimitiveAssembler<VertexShader::OutputVertex> clipper_primitive_assembler(registers.triangle_topology.Value());
             PrimitiveAssembler<DebugUtils::GeometryDumper::Vertex> dumping_primitive_assembler(registers.triangle_topology.Value());
@@ -107,6 +120,12 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
 
                 if (is_indexed) {
                     // TODO: Implement some sort of vertex cache!
+                    unsigned int slot = vertex & (kVertexCacheSize - 1);
+                    if (caches[slot].in == vertex) {
+                        clipper_primitive_assembler.SubmitVertex(caches[slot].out, Clipper::ProcessTriangle);
+                        printf("Processed cached!\n");
+                        continue;
+                    }
                 }
 
                 // Initialize data for the current vertex
@@ -154,6 +173,9 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
 
                 if (is_indexed) {
                     // TODO: Add processed vertex to vertex cache!
+                    unsigned int slot = vertex & (kVertexCacheSize - 1);
+                    caches[slot].in = vertex;
+                    caches[slot].out = output;
                 }
 
                 // Send to triangle clipper
