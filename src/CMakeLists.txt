@@ -10,3 +10,7 @@ endif()
 if (ENABLE_QT)
     add_subdirectory(citra_qt)
 endif()
+
+if (ANDROID)
+    add_subdirectory(citra_android)
+endif()
