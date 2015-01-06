@@ -50,8 +50,8 @@ Manager::Manager() {
 }
 
 Manager::~Manager() {
-    for(Interface* service : m_services) {
-        DeleteService(service->GetPortName());
+    for(int i = m_services.size() - 1; i >= 0; --i) {
+        DeleteService(m_services[i]->GetPortName());
     }
 }
 
@@ -67,7 +67,7 @@ void Manager::DeleteService(const std::string& port_name) {
     Interface* service = FetchFromPortName(port_name);
     m_services.erase(std::remove(m_services.begin(), m_services.end(), service), m_services.end());
     m_port_map.erase(port_name);
-    delete service;
+    Kernel::g_handle_table.Close(service->GetHandle());
 }
 
 /// Get a Service Interface from its Handle
