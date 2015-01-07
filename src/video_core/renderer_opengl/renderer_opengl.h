@@ -6,7 +6,11 @@
 
 #include <array>
 
+#ifndef ANDROID
 #include "generated/gl_3_2_core.h"
+#else
+#include <GLES2/gl2.h>
+#endif
 
 #include "common/math_util.h"
 

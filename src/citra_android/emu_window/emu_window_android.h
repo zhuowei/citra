@@ -6,7 +6,7 @@
 
 #include "common/emu_window.h"
 
-struct GLFWwindow;
+#include <EGL/egl.h>
 
 class EmuWindow_Android : public EmuWindow {
 public:
@@ -27,5 +27,9 @@ public:
 
     void ReloadSetKeymaps() override;
 
-    static EmuWindow_Android* GetEmuWindow(GLFWwindow* win);
+    static EmuWindow_Android* GetEmuWindow();
+private:
+    EGLSurface egl_surf;
+    EGLContext egl_ctx;
+    EGLDisplay egl_dpy;
 };

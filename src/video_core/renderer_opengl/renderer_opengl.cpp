@@ -8,7 +8,11 @@
 #include "video_core/video_core.h"
 #include "video_core/renderer_opengl/renderer_opengl.h"
 #include "video_core/renderer_opengl/gl_shader_util.h"
+#ifdef ANDROID
+#include "video_core/renderer_opengl/gl_es2_shaders.h"
+#else
 #include "video_core/renderer_opengl/gl_shaders.h"
+#endif
 
 #include <algorithm>
 
@@ -66,8 +70,13 @@ void RendererOpenGL::SwapBuffers() {
             // This is expected to not happen very often and hence should not be a
             // performance problem.
             glBindTexture(GL_TEXTURE_2D, textures[i].handle);
+#ifndef ANDROID
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer.width, framebuffer.height, 0,
                 GL_BGR, GL_UNSIGNED_BYTE, nullptr);
+#else
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer.width, framebuffer.height, 0,
+                GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+#endif
             textures[i].width = framebuffer.width;
             textures[i].height = framebuffer.height;
         }
@@ -109,17 +118,27 @@ void RendererOpenGL::LoadFBToActiveGLTexture(const GPU::Regs::FramebufferConfig&
     _dbg_assert_(Render_OpenGL, pixel_stride % 4 == 0);
 
     glBindTexture(GL_TEXTURE_2D, texture.handle);
+#ifndef ANDROID
+    // fixme: stride
     glPixelStorei(GL_UNPACK_ROW_LENGTH, (GLint)pixel_stride);
+#endif
 
     // Update existing texture
     // TODO: Test what happens on hardware when you change the framebuffer dimensions so that they
     //       differ from the LCD resolution.
     // TODO: Applications could theoretically crash Citra here by specifying too large
     //       framebuffer sizes. We should make sure that this cannot happen.
+#ifndef ANDROID
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, framebuffer.width, framebuffer.height,
         GL_BGR, GL_UNSIGNED_BYTE, framebuffer_data);
-
+#else
+    // FIXME: flip the order
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, framebuffer.width, framebuffer.height,
+        GL_RGB, GL_UNSIGNED_BYTE, framebuffer_data);
+#endif
+#ifndef ANDROID
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+#endif
 
     glBindTexture(GL_TEXTURE_2D, 0);
 }
@@ -141,6 +160,7 @@ void RendererOpenGL::InitOpenGLObjects() {
     // Generate VBO handle for drawing
     glGenBuffers(1, &vertex_buffer_handle);
 
+#ifndef ANDROID
     // Generate VAO
     glGenVertexArrays(1, &vertex_array_handle);
     glBindVertexArray(vertex_array_handle);
@@ -152,6 +172,7 @@ void RendererOpenGL::InitOpenGLObjects() {
     glVertexAttribPointer(attrib_tex_coord, 2, GL_FLOAT, GL_FALSE, sizeof(ScreenRectVertex), (GLvoid*)offsetof(ScreenRectVertex, tex_coord));
     glEnableVertexAttribArray(attrib_position);
     glEnableVertexAttribArray(attrib_tex_coord);
+#endif
 
     // Allocate textures for each screen
     for (auto& texture : textures) {
@@ -161,7 +182,9 @@ void RendererOpenGL::InitOpenGLObjects() {
         // know the framebuffer size.
 
         glBindTexture(GL_TEXTURE_2D, texture.handle);
+#ifndef ANDROID
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+#endif
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -182,8 +205,17 @@ void RendererOpenGL::DrawSingleScreenRotated(const TextureInfo& texture, float x
     };
 
     glBindTexture(GL_TEXTURE_2D, texture.handle);
+#ifndef ANDROID
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_handle);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices.data());
+#else
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_handle);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices.data(), GL_STREAM_DRAW);
+    glVertexAttribPointer(attrib_position,  2, GL_FLOAT, GL_FALSE, sizeof(ScreenRectVertex), (GLvoid*)offsetof(ScreenRectVertex, position));
+    glVertexAttribPointer(attrib_tex_coord, 2, GL_FLOAT, GL_FALSE, sizeof(ScreenRectVertex), (GLvoid*)offsetof(ScreenRectVertex, tex_coord));
+    glEnableVertexAttribArray(attrib_position);
+    glEnableVertexAttribArray(attrib_tex_coord);
+#endif
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
@@ -198,8 +230,16 @@ void RendererOpenGL::DrawScreens() {
     glUseProgram(program_id);
 
     // Set projection matrix
+#ifndef ANDROID
     std::array<GLfloat, 3*2> ortho_matrix = MakeOrthographicMatrix((float)resolution_width, (float)resolution_height);
     glUniformMatrix3x2fv(uniform_modelview_matrix, 1, GL_FALSE, ortho_matrix.data());
+#else
+    std::array<GLfloat, 3*2> ortho_matrix_a = MakeOrthographicMatrix((float)resolution_width, (float)resolution_height);
+    std::array<GLfloat, 3*3> ortho_matrix {ortho_matrix_a[0], ortho_matrix_a[1], ortho_matrix_a[2],
+        ortho_matrix_a[3], ortho_matrix_a[4], ortho_matrix_a[5],
+        0.0f, 0.0f, 1.0f};
+    glUniformMatrix3fv(uniform_modelview_matrix, 1, GL_FALSE, ortho_matrix.data());
+#endif
 
     // Bind texture in Texture Unit 0
     glActiveTexture(GL_TEXTURE0);
@@ -261,11 +301,13 @@ MathUtil::Rectangle<unsigned> RendererOpenGL::GetViewportExtent() {
 void RendererOpenGL::Init() {
     render_window->MakeCurrent();
 
+#ifndef ANDROID
     int err = ogl_LoadFunctions();
     if (ogl_LOAD_SUCCEEDED != err) {
         LOG_CRITICAL(Render_OpenGL, "Failed to initialize GL functions! Exiting...");
         exit(-1);
     }
+#endif
 
     LOG_INFO(Render_OpenGL, "GL_VERSION: %s", glGetString(GL_VERSION));
     InitOpenGLObjects();

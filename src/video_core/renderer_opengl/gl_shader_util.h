@@ -4,7 +4,11 @@
 
 #pragma once
 
+#ifdef ANDROID
+#include <GLES2/gl2.h>
+#else
 #include "generated/gl_3_2_core.h"
+#endif
 
 namespace ShaderUtil {
 

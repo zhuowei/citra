@@ -17,7 +17,7 @@ create_directory_groups(${SRCS} ${HEADERS})
 
 add_library(citra SHARED ${SRCS} ${HEADERS})
 target_link_libraries(citra core common video_core)
-target_link_libraries(citra GLESv2 inih)
+target_link_libraries(citra GLESv2 EGL inih)
 
 if (UNIX)
     target_link_libraries(citra -pthread)

@@ -12,15 +12,13 @@
 
 EmuWindow_Android* g_emuWindow_Android;
 
-EmuWindow_Android* EmuWindow_Android::GetEmuWindow(GLFWwindow* win) {
-    if (!g_emuWindow_Android) {
-        g_emuWindow_Android = new EmuWindow_Android();
-    }
+EmuWindow_Android* EmuWindow_Android::GetEmuWindow() {
     return g_emuWindow_Android;
 }
 
 /// EmuWindow_Android constructor
 EmuWindow_Android::EmuWindow_Android() {
+    g_emuWindow_Android = this;
 /*    keyboard_id = KeyMap::NewDeviceId();
 
     ReloadSetKeymaps();
@@ -76,7 +74,7 @@ EmuWindow_Android::~EmuWindow_Android() {
 
 /// Swap buffers to display the next frame
 void EmuWindow_Android::SwapBuffers() {
-//    glfwSwapBuffers(m_render_window);
+    eglSwapBuffers(egl_dpy, egl_surf);
 }
 
 /// Polls window events
@@ -85,12 +83,12 @@ void EmuWindow_Android::PollEvents() {
 
 /// Makes the GLFW OpenGL context current for the caller thread
 void EmuWindow_Android::MakeCurrent() {
-//    glfwMakeContextCurrent(m_render_window);
+    eglMakeCurrent(egl_dpy, egl_surf, egl_surf, egl_ctx);
 }
 
 /// Releases (dunno if this is the "right" word) the GLFW context from the caller thread
 void EmuWindow_Android::DoneCurrent() {
-//    glfwMakeContextCurrent(nullptr);
+    eglMakeCurrent(egl_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 }
 
 void EmuWindow_Android::ReloadSetKeymaps() {
