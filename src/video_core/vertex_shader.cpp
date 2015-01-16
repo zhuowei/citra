@@ -563,7 +563,7 @@ static void ProcessShaderCode(VertexShaderState& state) {
 
 OutputVertex RunShader(const InputVertex& input, int num_attributes) {
     if (shader_changed) {
-        VertexShaderToGLSL::ToGlsl(shader_memory, swizzle_data);
+        VertexShaderToGLSL::CompileGlsl(shader_memory, swizzle_data);
         shader_changed = false;
     }
     VertexShaderState state;

@@ -25,9 +25,20 @@ using nihstro::RegisterType;
 using nihstro::SourceRegister;
 using nihstro::SwizzlePattern;
 
+namespace ShaderUtil {
+int LoadShaders(const char*, const char*);
+};
+
 namespace Pica {
 
 namespace VertexShaderToGLSL {
+
+const char g_fragment_shader[] = R"(
+#version 110
+void main() {
+	gl_FragColor = vec4(0.0);
+}
+)";
 
 static std::map<Instruction::OpCode, std::string[3]> two_operand_format_strings {
 	{Instruction::OpCode::ADD, {"", "+", ""}},
@@ -52,8 +63,7 @@ static std::map<Instruction::OpCode, std::string[2]> one_operand_format_strings 
         return ret;
     }
 
-std::string ToGlsl(const std::array<u32, 1024>& shader_memory, const std::array<u32, 1024>& swizzle_data) {
-	std::stringstream out;
+static void ToGlsl_code(std::stringstream& out, const std::array<u32, 1024>& shader_memory, const std::array<u32, 1024>& swizzle_data) {
 	bool end_loop = false;
 	for (int i = 0; i < 1024; i++) {
 		const Instruction& instr = (const Instruction&)shader_memory[i];
@@ -103,9 +113,38 @@ std::string ToGlsl(const std::array<u32, 1024>& shader_memory, const std::array<
 		}
 		if (end_loop) break;
 	}
+}
+
+std::string ToGlsl(const std::array<u32, 1024>& shader_memory, const std::array<u32, 1024>& swizzle_data) {
+	std::stringstream out;
+	out << "#version 110" << std::endl;
+	// outputs
+	for (int i = 0; i < 7; i++) {
+		out << "varying vec4 o" << i << ";" << std::endl;
+	}
+	// attributes
+	for (int i = 0; i < 7; i++) {
+		out << "attribute vec4 v" << i << ";" << std::endl;
+	}
+	// uniforms
+	for (int i = 0; i < 96; i++) {
+		out << "uniform vec4 c" << i << ";" << std::endl;
+	}
+	out << "void main() {" << std::endl;
+	// temps
+	for (int i = 0; i < 16; i++) {
+		out << "vec4 r" << i << ";" << std::endl;
+	}
+	ToGlsl_code(out, shader_memory, swizzle_data);
+	out << "}" << std::endl;
 	printf("Shader: %s\n", out.str().c_str());
 	return out.str();
 }
 
+void CompileGlsl(const std::array<u32, 1024>& shader_memory, const std::array<u32, 1024>& swizzle_data) {
+	std::string vertex_shader = ToGlsl(shader_memory, swizzle_data);
+	ShaderUtil::LoadShaders(vertex_shader.c_str(), g_fragment_shader);
 }
-}
+
+} // namespace VertexShaderToGLSL
+} // namespace Pica
