@@ -9,6 +9,7 @@ set(SRCS
             rasterizer.cpp
             utils.cpp
             vertex_shader.cpp
+            vertex_shader_to_glsl.cpp
             video_core.cpp
             )
 
@@ -28,6 +29,7 @@ set(HEADERS
             renderer_base.h
             utils.h
             vertex_shader.h
+            vertex_shader_to_glsl.h
             video_core.h
             )
 

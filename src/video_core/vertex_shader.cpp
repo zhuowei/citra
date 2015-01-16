@@ -15,6 +15,7 @@
 
 #include "pica.h"
 #include "vertex_shader.h"
+#include "vertex_shader_to_glsl.h"
 #include "debug_utils/debug_utils.h"
 
 using nihstro::Instruction;
@@ -38,12 +39,15 @@ static struct {
 // For now, we just keep these local arrays around.
 static std::array<u32, 1024> shader_memory;
 static std::array<u32, 1024> swizzle_data;
+static bool shader_changed;
 
 void SubmitShaderMemoryChange(u32 addr, u32 value) {
+    shader_changed = (shader_memory[addr] != value);
     shader_memory[addr] = value;
 }
 
 void SubmitSwizzleDataChange(u32 addr, u32 value) {
+    shader_changed = (swizzle_data[addr] != value);
     swizzle_data[addr] = value;
 }
 
@@ -558,6 +562,10 @@ static void ProcessShaderCode(VertexShaderState& state) {
 }
 
 OutputVertex RunShader(const InputVertex& input, int num_attributes) {
+    if (shader_changed) {
+        VertexShaderToGLSL::ToGlsl(shader_memory, swizzle_data);
+        shader_changed = false;
+    }
     VertexShaderState state;
 
     const u32* main = &shader_memory[registers.vs_main_offset];
