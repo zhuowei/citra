@@ -37,6 +37,13 @@ public:
     /// Shutdown the renderer
     void ShutDown() override;
 
+static void handleVirtualGPUDraw(u32 vertex_attribute_sources[16],
+            u32 vertex_attribute_strides[16],
+            u32 vertex_attribute_formats[16],
+            u32 vertex_attribute_elements[16],
+            u32 vertex_attribute_element_size[16],
+            bool is_indexed);
+
 private:
     /// Structure used for storing information about the textures for each 3DS screen
     struct TextureInfo {

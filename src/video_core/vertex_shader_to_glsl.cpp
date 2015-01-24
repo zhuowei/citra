@@ -36,7 +36,7 @@ namespace VertexShaderToGLSL {
 const char g_fragment_shader[] = R"(
 #version 110
 void main() {
-	gl_FragColor = vec4(0.0);
+	gl_FragColor = vec4(gl_FragCoord.xyz, 1.0);
 }
 )";
 
@@ -65,7 +65,7 @@ static std::map<Instruction::OpCode, std::string[2]> one_operand_format_strings 
 
 static void ToGlsl_code(std::stringstream& out, const std::array<u32, 1024>& shader_memory, const std::array<u32, 1024>& swizzle_data) {
 	bool end_loop = false;
-	for (int i = 0; i < 1024; i++) {
+	for (int i = registers.vs_main_offset; i < 1024; i++) {
 		const Instruction& instr = (const Instruction&)shader_memory[i];
 		const SwizzlePattern& swizzle = (const SwizzlePattern&)swizzle_data[instr.common.operand_desc_id];
 
@@ -118,12 +118,13 @@ static void ToGlsl_code(std::stringstream& out, const std::array<u32, 1024>& sha
 std::string ToGlsl(const std::array<u32, 1024>& shader_memory, const std::array<u32, 1024>& swizzle_data) {
 	std::stringstream out;
 	out << "#version 110" << std::endl;
+	out << "#define o0 gl_Position" << std::endl;
 	// outputs
-	for (int i = 0; i < 7; i++) {
+	for (int i = 1; i < 7; i++) {
 		out << "varying vec4 o" << i << ";" << std::endl;
 	}
 	// attributes
-	for (int i = 0; i < 7; i++) {
+	for (int i = 0; i <= 7; i++) {
 		out << "attribute vec4 v" << i << ";" << std::endl;
 	}
 	// uniforms
@@ -141,10 +142,12 @@ std::string ToGlsl(const std::array<u32, 1024>& shader_memory, const std::array<
 	return out.str();
 }
 
-void CompileGlsl(const std::array<u32, 1024>& shader_memory, const std::array<u32, 1024>& swizzle_data) {
+int CompileGlsl(const std::array<u32, 1024>& shader_memory, const std::array<u32, 1024>& swizzle_data) {
 	std::string vertex_shader = ToGlsl(shader_memory, swizzle_data);
-	ShaderUtil::LoadShaders(vertex_shader.c_str(), g_fragment_shader);
+	return ShaderUtil::LoadShaders(vertex_shader.c_str(), g_fragment_shader);
 }
+
+// this is awful.
 
 } // namespace VertexShaderToGLSL
 } // namespace Pica

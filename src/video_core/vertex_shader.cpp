@@ -39,7 +39,7 @@ static struct {
 // For now, we just keep these local arrays around.
 static std::array<u32, 1024> shader_memory;
 static std::array<u32, 1024> swizzle_data;
-static bool shader_changed;
+bool shader_changed;
 
 void SubmitShaderMemoryChange(u32 addr, u32 value) {
     shader_changed = (shader_memory[addr] != value);

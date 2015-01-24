@@ -5,6 +5,9 @@
 #include "core/hw/gpu.h"
 #include "core/mem_map.h"
 #include "common/emu_window.h"
+#include "video_core/pica.h"
+#include "video_core/vertex_shader.h"
+#include "video_core/vertex_shader_to_glsl.h"
 #include "video_core/video_core.h"
 #include "video_core/renderer_opengl/renderer_opengl.h"
 #include "video_core/renderer_opengl/gl_shader_util.h"
@@ -125,6 +128,7 @@ void RendererOpenGL::LoadFBToActiveGLTexture(const GPU::Regs::FramebufferConfig&
 /**
  * Initializes the OpenGL state and creates persistent objects.
  */
+static bool openglInit = false;
 void RendererOpenGL::InitOpenGLObjects() {
     glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
     glDisable(GL_DEPTH_TEST);
@@ -166,6 +170,7 @@ void RendererOpenGL::InitOpenGLObjects() {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     }
     glBindTexture(GL_TEXTURE_2D, 0);
+    openglInit = true;
 }
 
 void RendererOpenGL::ConfigureFramebufferTexture(TextureInfo& texture,
@@ -235,6 +240,7 @@ void RendererOpenGL::DrawSingleScreenRotated(const TextureInfo& texture, float x
     glBindTexture(GL_TEXTURE_2D, texture.handle);
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_handle);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices.data());
+    glBindVertexArray(vertex_array_handle);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
@@ -244,7 +250,7 @@ void RendererOpenGL::DrawSingleScreenRotated(const TextureInfo& texture, float x
 void RendererOpenGL::DrawScreens() {
     auto viewport_extent = GetViewportExtent();
     glViewport(viewport_extent.left, viewport_extent.top, viewport_extent.GetWidth(), viewport_extent.GetHeight()); // TODO: Or bottom?
-    glClear(GL_COLOR_BUFFER_BIT);
+    //glClear(GL_COLOR_BUFFER_BIT);
 
     glUseProgram(program_id);
 
@@ -260,8 +266,8 @@ void RendererOpenGL::DrawScreens() {
     const float top_x = 0.5f * (max_width - VideoCore::kScreenTopWidth);
     const float bottom_x = 0.5f * (max_width - VideoCore::kScreenBottomWidth);
 
-    DrawSingleScreenRotated(textures[0], top_x, 0,
-        (float)VideoCore::kScreenTopWidth, (float)VideoCore::kScreenTopHeight);
+    //DrawSingleScreenRotated(textures[0], top_x, 0,
+    //    (float)VideoCore::kScreenTopWidth, (float)VideoCore::kScreenTopHeight);
     DrawSingleScreenRotated(textures[1], bottom_x, (float)VideoCore::kScreenTopHeight,
         (float)VideoCore::kScreenBottomWidth, (float)VideoCore::kScreenBottomHeight);
 
@@ -306,6 +312,121 @@ MathUtil::Rectangle<unsigned> RendererOpenGL::GetViewportExtent() {
     }
 
     return viewport_extent;
+}
+
+static GLenum picaToGLTopology(Pica::Regs::TriangleTopology topology) {
+    using Pica::Regs;
+    switch (topology) {
+        case Regs::TriangleTopology::List:
+        case Regs::TriangleTopology::ListIndexed:
+            return GL_TRIANGLES;
+        case Regs::TriangleTopology::Strip:
+            return GL_TRIANGLE_STRIP;
+        case Regs::TriangleTopology::Fan:
+            return GL_TRIANGLE_FAN;
+        default:
+            LOG_ERROR(HW_GPU, "Unknown triangle topology %x:", (int)topology);
+            break;
+    }
+}
+
+static GLenum picaToGLFormat(int format) {
+    using Pica::Regs;
+/*
+        enum class Format : u64 {
+            BYTE = 0,
+            UBYTE = 1,
+            SHORT = 2,
+            FLOAT = 3,
+        };
+*/
+    switch (format) {
+        case 0: //Regs::Format::BYTE:
+            return GL_BYTE;
+        case 1: //Regs::Format::UBYTE:
+            return GL_UNSIGNED_BYTE;
+        case 2: //Regs::Format::SHORT:
+            return GL_SHORT;
+        case 3: //Regs::Format::FLOAT:
+            return GL_FLOAT;
+        default:
+            return GL_FLOAT; // not reached.
+    }
+}
+
+static bool checkGL(int line) {
+    GLenum error;
+    bool once = false;
+    while ((error = glGetError())) {
+        LOG_ERROR(Render_OpenGL, "GL Error: %x line %d", error, line);
+        once = true;
+    }
+    return once;
+}
+
+void RendererOpenGL::handleVirtualGPUDraw(u32 vertex_attribute_sources[16],
+            u32 vertex_attribute_strides[16],
+            u32 vertex_attribute_formats[16],
+            u32 vertex_attribute_elements[16],
+            u32 vertex_attribute_element_size[16],
+            bool is_indexed) {
+    static GLint shader = -1;
+    static GLuint vertexAttribIndex[8];
+    static GLuint vertexBuffers[8];
+    static GLuint vertexArrays[8];
+    static bool hasInit = false;
+    using namespace Pica;
+
+    if (!openglInit) return;
+
+    VideoCore::g_emu_window->MakeCurrent();
+
+    while(glGetError()) {};
+
+    if (!hasInit) {
+        glGenBuffers(8, vertexBuffers);
+        if (checkGL(__LINE__)) exit(1);
+        if (vertexBuffers[0] == 0) exit(1);
+        glGenVertexArrays(8, vertexArrays);
+        if (checkGL(__LINE__)) exit(1);
+        for (int i = 0; i < 8; i++) {
+            printf("Buffers: %d %d %d\n", i, vertexBuffers[i], vertexArrays[i]);
+        }
+        hasInit = true;
+    }
+
+    if (VertexShader::shader_changed) {
+        shader = VertexShaderToGLSL::CompileGlsl(VertexShader::GetShaderBinary(), VertexShader::GetSwizzlePatterns());
+        checkGL(__LINE__);
+        char attribName[16];
+        for (int i = 0; i <= 7; i++) {
+            snprintf(attribName, sizeof(attribName), "v%d", i);
+            vertexAttribIndex[i] = glGetAttribLocation(shader, attribName);
+            checkGL(__LINE__);
+            printf("Attrib index: %s %d\n", attribName, vertexAttribIndex[i]);
+        }
+        VertexShader::shader_changed = false;
+    }
+    glUseProgram(shader);
+    checkGL(__LINE__);
+    auto& attribute_config = registers.vertex_attributes;
+    for (int i = 0; i < attribute_config.GetNumTotalAttributes(); i++) {
+        void* ptr = Memory::GetPointer(PAddrToVAddr(vertex_attribute_sources[i]));
+        glBindBuffer(GL_ARRAY_BUFFER, vertexBuffers[i]);
+        checkGL(__LINE__);
+        glBufferData(GL_ARRAY_BUFFER, vertex_attribute_elements[i] * vertex_attribute_element_size[i] + registers.num_vertices * vertex_attribute_strides[i], ptr, GL_STREAM_DRAW);
+        checkGL(__LINE__);
+        glBindVertexArray(vertexArrays[i]);
+        checkGL(__LINE__);
+        glVertexAttribPointer(vertexAttribIndex[i], vertex_attribute_element_size[i], picaToGLFormat(vertex_attribute_formats[i]),
+            GL_FALSE, vertex_attribute_strides[i], nullptr);
+        checkGL(__LINE__);
+        glEnableVertexAttribArray(vertexAttribIndex[i]);
+        checkGL(__LINE__);
+    }
+    glDrawArrays(picaToGLTopology(registers.triangle_topology.Value()), 0, registers.num_vertices);
+    checkGL(__LINE__);
+    LOG_WARNING(Render_OpenGL, "Frame!");
 }
 
 /// Initialize the renderer

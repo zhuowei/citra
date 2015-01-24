@@ -15,7 +15,7 @@ namespace Pica {
 
 namespace VertexShaderToGLSL {
 std::string ToGlsl(const std::array<u32, 1024>& shader_memory, const std::array<u32, 1024>& swizzle_data);
-void CompileGlsl(const std::array<u32, 1024>& shader_memory, const std::array<u32, 1024>& swizzle_data);
+int CompileGlsl(const std::array<u32, 1024>& shader_memory, const std::array<u32, 1024>& swizzle_data);
 } // namespace
 
 } // namespace

@@ -14,6 +14,8 @@
 #include "core/hw/gpu.h"
 
 #include "debug_utils/debug_utils.h"
+class EmuWindow;
+#include "renderer_opengl/renderer_opengl.h"
 
 namespace Pica {
 
@@ -99,9 +101,14 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
             const u16* index_address_16 = (u16*)index_address_8;
             bool index_u16 = index_info.format != 0;
 
+            RendererOpenGL::handleVirtualGPUDraw(vertex_attribute_sources, vertex_attribute_strides, 
+vertex_attribute_formats, vertex_attribute_elements, vertex_attribute_element_size, is_indexed);
+
+#if 0
             DebugUtils::GeometryDumper geometry_dumper;
             PrimitiveAssembler<VertexShader::OutputVertex> clipper_primitive_assembler(registers.triangle_topology.Value());
             PrimitiveAssembler<DebugUtils::GeometryDumper::Vertex> dumping_primitive_assembler(registers.triangle_topology.Value());
+
 
             for (unsigned int index = 0; index < registers.num_vertices; ++index)
             {
@@ -180,6 +187,7 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
 
             if (g_debug_context)
                 g_debug_context->OnEvent(DebugContext::Event::FinishedPrimitiveBatch, nullptr);
+#endif
 
             break;
         }

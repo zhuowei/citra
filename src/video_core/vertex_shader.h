@@ -77,6 +77,7 @@ Math::Vec4<u8>& GetIntUniform(u32 index);
 
 const std::array<u32, 1024>& GetShaderBinary();
 const std::array<u32, 1024>& GetSwizzlePatterns();
+extern bool shader_changed;
 
 } // namespace
 
