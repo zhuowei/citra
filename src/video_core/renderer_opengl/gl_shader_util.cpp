@@ -65,6 +65,8 @@ GLuint LoadShaders(const char* vertex_shader, const char* fragment_shader) {
     GLuint program_id = glCreateProgram();
     glAttachShader(program_id, vertex_shader_id);
     glAttachShader(program_id, fragment_shader_id);
+const GLchar* feedbackVaryings[] = { "gl_Position" };
+glTransformFeedbackVaryings(program_id, 1, feedbackVaryings, GL_INTERLEAVED_ATTRIBS);
     glLinkProgram(program_id);
 
     // Check the program

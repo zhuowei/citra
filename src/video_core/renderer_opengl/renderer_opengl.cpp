@@ -14,6 +14,10 @@
 #include "video_core/renderer_opengl/gl_shaders.h"
 
 #include <algorithm>
+//#include <dlfcn.h>
+		    #include <GL/glx.h>
+
+			#define IntGetProcAddress(name) (*glXGetProcAddressARB)((const GLubyte*)name)
 
 /**
  * Vertex structure that the drawn screen rectangles are composed of.
@@ -61,7 +65,7 @@ RendererOpenGL::~RendererOpenGL() {
 void RendererOpenGL::SwapBuffers() {
     render_window->MakeCurrent();
 
-    for(int i : {0, 1}) {
+    /*for(int i : {0, 1}) {
         const auto& framebuffer = GPU::g_regs.framebuffer_config[i];
 
         if (textures[i].width != (GLsizei)framebuffer.width ||
@@ -74,13 +78,15 @@ void RendererOpenGL::SwapBuffers() {
         }
 
         LoadFBToActiveGLTexture(GPU::g_regs.framebuffer_config[i], textures[i]);
-    }
+    }*/
 
     DrawScreens();
 
     // Swap buffers
     render_window->PollEvents();
+    glFlush();
     render_window->SwapBuffers();
+    glClear(GL_COLOR_BUFFER_BIT);
 }
 
 /**
@@ -124,17 +130,27 @@ void RendererOpenGL::LoadFBToActiveGLTexture(const GPU::Regs::FramebufferConfig&
 
     glBindTexture(GL_TEXTURE_2D, 0);
 }
+static void on_gl_error(GLenum source, GLenum type, GLuint id, GLenum severity,
+GLsizei length, const char* message, void *userParam)
+{
 
+printf("%s\n", message);
+
+}
+extern void glDebugMessageCallback(void*, void*);
 /**
  * Initializes the OpenGL state and creates persistent objects.
  */
 static bool openglInit = false;
 void RendererOpenGL::InitOpenGLObjects() {
-    glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
+    glClearColor(1.0f, 0.0f, 1.0f, 0.0f);
     glDisable(GL_DEPTH_TEST);
+    glViewport(0,0,640,480);
+    void (*glDebugMessageCallback)(void*, void*) = (void (*)(void*, void*)) IntGetProcAddress("glDebugMessageCallback");
+    glDebugMessageCallback((void*)&on_gl_error, nullptr);
 
     // Link shaders and get variable locations
-    program_id = ShaderUtil::LoadShaders(GLShaders::g_vertex_shader, GLShaders::g_fragment_shader);
+    /*program_id = ShaderUtil::LoadShaders(GLShaders::g_vertex_shader, GLShaders::g_fragment_shader);
     uniform_modelview_matrix = glGetUniformLocation(program_id, "modelview_matrix");
     uniform_color_texture = glGetUniformLocation(program_id, "color_texture");
     attrib_position = glGetAttribLocation(program_id, "vert_position");
@@ -169,7 +185,7 @@ void RendererOpenGL::InitOpenGLObjects() {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     }
-    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);*/
     openglInit = true;
 }
 
@@ -230,7 +246,7 @@ void RendererOpenGL::ConfigureFramebufferTexture(TextureInfo& texture,
  * Draws a single texture to the emulator window, rotating the texture to correct for the 3DS's LCD rotation.
  */
 void RendererOpenGL::DrawSingleScreenRotated(const TextureInfo& texture, float x, float y, float w, float h) {
-    std::array<ScreenRectVertex, 4> vertices = {
+    /*std::array<ScreenRectVertex, 4> vertices = {
         ScreenRectVertex(x,   y,   1.f, 0.f),
         ScreenRectVertex(x+w, y,   1.f, 1.f),
         ScreenRectVertex(x,   y+h, 0.f, 0.f),
@@ -241,7 +257,7 @@ void RendererOpenGL::DrawSingleScreenRotated(const TextureInfo& texture, float x
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_handle);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices.data());
     glBindVertexArray(vertex_array_handle);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);*/
 }
 
 /**
@@ -249,13 +265,13 @@ void RendererOpenGL::DrawSingleScreenRotated(const TextureInfo& texture, float x
  */
 void RendererOpenGL::DrawScreens() {
     auto viewport_extent = GetViewportExtent();
-    glViewport(viewport_extent.left, viewport_extent.top, viewport_extent.GetWidth(), viewport_extent.GetHeight()); // TODO: Or bottom?
+    //glViewport(viewport_extent.left, viewport_extent.top, viewport_extent.GetWidth(), viewport_extent.GetHeight()); // TODO: Or bottom?
     //glClear(GL_COLOR_BUFFER_BIT);
 
-    glUseProgram(program_id);
+    //glUseProgram(program_id);
 
     // Set projection matrix
-    std::array<GLfloat, 3*2> ortho_matrix = MakeOrthographicMatrix((float)resolution_width, (float)resolution_height);
+    /*std::array<GLfloat, 3*2> ortho_matrix = MakeOrthographicMatrix((float)resolution_width, (float)resolution_height);
     glUniformMatrix3x2fv(uniform_modelview_matrix, 1, GL_FALSE, ortho_matrix.data());
 
     // Bind texture in Texture Unit 0
@@ -269,7 +285,7 @@ void RendererOpenGL::DrawScreens() {
     //DrawSingleScreenRotated(textures[0], top_x, 0,
     //    (float)VideoCore::kScreenTopWidth, (float)VideoCore::kScreenTopHeight);
     DrawSingleScreenRotated(textures[1], bottom_x, (float)VideoCore::kScreenTopHeight,
-        (float)VideoCore::kScreenBottomWidth, (float)VideoCore::kScreenBottomHeight);
+        (float)VideoCore::kScreenBottomWidth, (float)VideoCore::kScreenBottomHeight);*/
 
     m_current_frame++;
 }
@@ -374,7 +390,9 @@ void RendererOpenGL::handleVirtualGPUDraw(u32 vertex_attribute_sources[16],
     static GLuint vertexAttribIndex[8];
     static GLuint vertexBuffers[8];
     static GLuint vertexArrays[8];
+    static GLuint shaderUniforms[96];
     static bool hasInit = false;
+static GLuint tbo;
     using namespace Pica;
 
     if (!openglInit) return;
@@ -392,6 +410,10 @@ void RendererOpenGL::handleVirtualGPUDraw(u32 vertex_attribute_sources[16],
         for (int i = 0; i < 8; i++) {
             printf("Buffers: %d %d %d\n", i, vertexBuffers[i], vertexArrays[i]);
         }
+
+glGenBuffers(1, &tbo);
+glBindBuffer(GL_ARRAY_BUFFER, tbo);
+glBufferData(GL_ARRAY_BUFFER, 0x100000, nullptr, GL_STATIC_READ);
         hasInit = true;
     }
 
@@ -405,28 +427,57 @@ void RendererOpenGL::handleVirtualGPUDraw(u32 vertex_attribute_sources[16],
             checkGL(__LINE__);
             printf("Attrib index: %s %d\n", attribName, vertexAttribIndex[i]);
         }
+        for (int i = 0; i <= 95; i++) {
+            snprintf(attribName, sizeof(attribName), "c%d", i);
+            shaderUniforms[i] = glGetUniformLocation(shader, attribName);
+            printf("Shader uniform: %s %d\n", attribName, shaderUniforms[i]);
+            checkGL(__LINE__);
+        }
         VertexShader::shader_changed = false;
     }
     glUseProgram(shader);
     checkGL(__LINE__);
     auto& attribute_config = registers.vertex_attributes;
     for (int i = 0; i < attribute_config.GetNumTotalAttributes(); i++) {
+        if (vertexAttribIndex[i] == -1) continue;
         void* ptr = Memory::GetPointer(PAddrToVAddr(vertex_attribute_sources[i]));
         glBindBuffer(GL_ARRAY_BUFFER, vertexBuffers[i]);
         checkGL(__LINE__);
-        glBufferData(GL_ARRAY_BUFFER, vertex_attribute_elements[i] * vertex_attribute_element_size[i] + registers.num_vertices * vertex_attribute_strides[i], ptr, GL_STREAM_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, registers.num_vertices * vertex_attribute_strides[i], ptr, GL_STREAM_DRAW);
         checkGL(__LINE__);
         glBindVertexArray(vertexArrays[i]);
         checkGL(__LINE__);
-        glVertexAttribPointer(vertexAttribIndex[i], vertex_attribute_element_size[i], picaToGLFormat(vertex_attribute_formats[i]),
+printf("Elements %d\n", vertex_attribute_elements[i]);
+        glVertexAttribPointer(vertexAttribIndex[i], vertex_attribute_elements[i], picaToGLFormat(vertex_attribute_formats[i]),
             GL_FALSE, vertex_attribute_strides[i], nullptr);
         checkGL(__LINE__);
         glEnableVertexAttribArray(vertexAttribIndex[i]);
         checkGL(__LINE__);
+	float* asdf = (float*) ptr;
+for (int i = 0; i < 40; i+=vertex_attribute_strides[i]/4) {
+	printf("Bound: %f %f %f %f\n", asdf[i], asdf[i+1], asdf[i+2], asdf[i+3]);
+}
+	//printf("bound %d first value %f\n", i, ((float*)ptr)[0]);
     }
+    for (int i = 0; i < 96; i++) { // todo: find out which uniforms are actually used
+        if (shaderUniforms[i] == -1) continue;
+        auto& uniform = VertexShader::GetFloatUniform(i);
+	printf("Uniform %d: %f, %f, %f, %f\n", i, uniform.x.ToFloat32(), uniform.y.ToFloat32(), uniform.z.ToFloat32(), uniform.w.ToFloat32());
+        glUniform4f(shaderUniforms[i], uniform.x.ToFloat32(), uniform.y.ToFloat32(), uniform.z.ToFloat32(), uniform.w.ToFloat32());
+        checkGL(__LINE__);
+    }
+glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, tbo);
+glBeginTransformFeedback(GL_TRIANGLES);
     glDrawArrays(picaToGLTopology(registers.triangle_topology.Value()), 0, registers.num_vertices);
+glEndTransformFeedback();
+glFlush();
+GLfloat feedback[40];
+glGetBufferSubData(GL_TRANSFORM_FEEDBACK_BUFFER, 0, sizeof(feedback), feedback);
+for (int i = 0; i < 40; i+=4) {
+	printf("Feedback: %f %f %f %f\n", feedback[i], feedback[i+1], feedback[i+2], feedback[i+3]);
+}
     checkGL(__LINE__);
-    LOG_WARNING(Render_OpenGL, "Frame!");
+    LOG_INFO(Render_OpenGL, "Frame!");
 }
 
 /// Initialize the renderer

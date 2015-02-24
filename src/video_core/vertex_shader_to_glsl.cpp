@@ -36,7 +36,7 @@ namespace VertexShaderToGLSL {
 const char g_fragment_shader[] = R"(
 #version 110
 void main() {
-	gl_FragColor = vec4(gl_FragCoord.xyz, 1.0);
+	gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0);
 }
 )";
 
@@ -137,6 +137,7 @@ std::string ToGlsl(const std::array<u32, 1024>& shader_memory, const std::array<
 		out << "vec4 r" << i << ";" << std::endl;
 	}
 	ToGlsl_code(out, shader_memory, swizzle_data);
+	//out << "gl_Position = v0;";
 	out << "}" << std::endl;
 	printf("Shader: %s\n", out.str().c_str());
 	return out.str();
