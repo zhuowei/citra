@@ -437,6 +437,7 @@ glBufferData(GL_ARRAY_BUFFER, 0x100000, nullptr, GL_STATIC_READ);
     }
     glUseProgram(shader);
     checkGL(__LINE__);
+    printf("Number of vertices: %d\n", registers.num_vertices);
     auto& attribute_config = registers.vertex_attributes;
     for (int i = 0; i < attribute_config.GetNumTotalAttributes(); i++) {
         if (vertexAttribIndex[i] == -1) continue;
@@ -447,14 +448,14 @@ glBufferData(GL_ARRAY_BUFFER, 0x100000, nullptr, GL_STATIC_READ);
         checkGL(__LINE__);
         glBindVertexArray(vertexArrays[i]);
         checkGL(__LINE__);
-printf("Elements %d\n", vertex_attribute_elements[i]);
+printf("Elements %d Stride %d\n", vertex_attribute_elements[i], vertex_attribute_strides[i]);
         glVertexAttribPointer(vertexAttribIndex[i], vertex_attribute_elements[i], picaToGLFormat(vertex_attribute_formats[i]),
             GL_FALSE, vertex_attribute_strides[i], nullptr);
         checkGL(__LINE__);
         glEnableVertexAttribArray(vertexAttribIndex[i]);
         checkGL(__LINE__);
 	float* asdf = (float*) ptr;
-for (int i = 0; i < 40; i+=vertex_attribute_strides[i]/4) {
+for (int i = 0; i < 40; i+=vertex_attribute_strides[i]/4 != 0? vertex_attribute_strides[i]/4: 4) {
 	printf("Bound: %f %f %f %f\n", asdf[i], asdf[i+1], asdf[i+2], asdf[i+3]);
 }
 	//printf("bound %d first value %f\n", i, ((float*)ptr)[0]);
@@ -473,7 +474,7 @@ glEndTransformFeedback();
 glFlush();
 GLfloat feedback[40];
 glGetBufferSubData(GL_TRANSFORM_FEEDBACK_BUFFER, 0, sizeof(feedback), feedback);
-for (int i = 0; i < 40; i+=4) {
+for (int i = 0; i < 4*registers.num_vertices; i+=4) {
 	printf("Feedback: %f %f %f %f\n", feedback[i], feedback[i+1], feedback[i+2], feedback[i+3]);
 }
     checkGL(__LINE__);
