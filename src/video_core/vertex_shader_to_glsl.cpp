@@ -109,6 +109,11 @@ static void ToGlsl_code(std::stringstream& out, const std::array<u32, 1024>& sha
 				case Instruction::OpCode::END:
 					end_loop = true;
 					break;
+				case Instruction::OpCode::NOP:
+					break;
+				default:
+					printf("Shader fail: %s\n", instr.opcode.GetInfo().name);
+					break;
 			}
 		}
 		if (end_loop) break;
@@ -137,7 +142,8 @@ std::string ToGlsl(const std::array<u32, 1024>& shader_memory, const std::array<
 		out << "vec4 r" << i << ";" << std::endl;
 	}
 	ToGlsl_code(out, shader_memory, swizzle_data);
-	//out << "gl_Position = v0;";
+	//out << "gl_Position.x = dot(c4, vec4(v0.xyz, 1.0));";
+	//out << "gl_Position.y = vec4(dot(c5, vec4(v0.xyz, 1.0))).y;";
 	out << "}" << std::endl;
 	printf("Shader: %s\n", out.str().c_str());
 	return out.str();
