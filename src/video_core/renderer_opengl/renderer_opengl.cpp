@@ -370,6 +370,29 @@ static GLenum picaToGLFormat(int format) {
     }
 }
 
+static GLenum picaToGLTextureFormat(Pica::Regs::TextureFormat format, GLenum* type) {
+	using TextureFormat = Pica::Regs::TextureFormat;
+	// yes, I know this duplicates code from the framebuffer format config
+	switch (format) {
+		case TextureFormat::RGBA8:
+			*type = GL_UNSIGNED_BYTE;
+			return GL_RGBA;
+		case TextureFormat::RGB8:
+			*type = GL_UNSIGNED_BYTE;
+			return GL_RGB;
+		case TextureFormat::RGBA5551:
+			*type = GL_UNSIGNED_SHORT_5_5_5_1;
+			return GL_RGBA;
+		case TextureFormat::RGBA4:
+			*type = GL_UNSIGNED_SHORT_4_4_4_4;
+			return GL_RGBA;
+		default:
+			LOG_ERROR(Render_OpenGL, "Unsupported texture format: %d", format);
+			*type = GL_UNSIGNED_BYTE;
+			return GL_RGBA;
+	}
+}
+
 static bool checkGL(int line) {
     GLenum error;
     bool once = false;
@@ -391,6 +414,8 @@ void RendererOpenGL::handleVirtualGPUDraw(u32 vertex_attribute_sources[16],
     static GLuint vertexBuffers[8];
     static GLuint vertexArrays[8];
     static GLuint shaderUniforms[96];
+    static GLuint shaderTextureUniforms[3];
+    static GLuint shaderTextures[3];
     static bool hasInit = false;
 static GLuint tbo;
     using namespace Pica;
@@ -414,6 +439,16 @@ static GLuint tbo;
 glGenBuffers(1, &tbo);
 glBindBuffer(GL_ARRAY_BUFFER, tbo);
 glBufferData(GL_ARRAY_BUFFER, 0x100000, nullptr, GL_STATIC_READ);
+glGenTextures(3, shaderTextures);
+for (int i = 0; i < 3; i++) {
+        glBindTexture(GL_TEXTURE_2D, shaderTextures[i]);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+}
+        glBindTexture(GL_TEXTURE_2D, 0);
         hasInit = true;
     }
 
@@ -433,6 +468,12 @@ glBufferData(GL_ARRAY_BUFFER, 0x100000, nullptr, GL_STATIC_READ);
             printf("Shader uniform: %s %d\n", attribName, shaderUniforms[i]);
             checkGL(__LINE__);
         }
+	for (int i = 0; i < 3; i++) {
+		snprintf(attribName, sizeof(attribName), "tex%d", i);
+		shaderTextureUniforms[i] = glGetUniformLocation(shader, attribName);
+            printf("Shader texture uniform: %s %d\n", attribName, shaderTextureUniforms[i]);
+	}
+        checkGL(__LINE__);
         VertexShader::shader_changed = false;
     }
     glUseProgram(shader);
@@ -467,16 +508,35 @@ for (int i = 0; i < 40; i+=vertex_attribute_strides[i]/4 != 0? vertex_attribute_
         glUniform4f(shaderUniforms[i], uniform.x.ToFloat32(), uniform.y.ToFloat32(), uniform.z.ToFloat32(), uniform.w.ToFloat32());
         checkGL(__LINE__);
     }
+    auto textures = registers.GetTextures();
+    for (int i = 0; i < 3; i++) {
+        if (shaderTextureUniforms[i] == -1) continue;
+        glUniform1i(shaderTextureUniforms[i], i);
+        checkGL(__LINE__);
+        glActiveTexture(GL_TEXTURE0 + i);
+        checkGL(__LINE__);
+        glBindTexture(GL_TEXTURE_2D, shaderTextures[i]);
+        checkGL(__LINE__);
+	GLenum type;
+	GLenum format = picaToGLTextureFormat(textures[i].format, &type);
+	void* pointer = Memory::GetPointer(PAddrToVAddr(textures[i].config.GetPhysicalAddress()));
+	printf("Pointer for tex%d: %p %x %x %x\n", i, pointer, ((int*)pointer)[0], ((int*)pointer)[1], ((int*)pointer)[2]);
+        checkGL(__LINE__);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, textures[i].config.width, textures[i].config.height, 0, format, type, pointer);
+        checkGL(__LINE__);
+    }
 glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, tbo);
 glBeginTransformFeedback(GL_TRIANGLES);
     glDrawArrays(picaToGLTopology(registers.triangle_topology.Value()), 0, registers.num_vertices);
 glEndTransformFeedback();
+/*
 glFlush();
 GLfloat feedback[40];
 glGetBufferSubData(GL_TRANSFORM_FEEDBACK_BUFFER, 0, sizeof(feedback), feedback);
 for (int i = 0; i < 4*registers.num_vertices; i+=4) {
 	printf("Feedback: %f %f %f %f\n", feedback[i], feedback[i+1], feedback[i+2], feedback[i+3]);
 }
+*/
     checkGL(__LINE__);
     LOG_INFO(Render_OpenGL, "Frame!");
 }

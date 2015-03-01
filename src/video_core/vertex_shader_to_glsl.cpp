@@ -35,8 +35,13 @@ namespace VertexShaderToGLSL {
 
 const char g_fragment_shader[] = R"(
 #version 110
+varying vec4 color;
+varying vec4 texcoord0;
+varying vec4 texcoord1;
+varying vec4 texcoord2;
+uniform sampler2D tex0;
 void main() {
-	gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0);
+	gl_FragColor = texture2D(tex0, texcoord0.xy) * color;
 }
 )";
 
@@ -120,12 +125,43 @@ static void ToGlsl_code(std::stringstream& out, const std::array<u32, 1024>& sha
 	}
 }
 
+static bool OutputAttribute(std::ostream& out, int index) {
+	// we only look at x for now.
+	using Semantic = Pica::Regs::VSOutputAttributes::Semantic;
+	Semantic attribDef = registers.vs_output_attributes[index].map_x;
+	switch (attribDef) {
+		case Semantic::POSITION_X:
+			out << "#define o" << index << " gl_Position" << std::endl;
+			break;
+		case Semantic::COLOR_R:
+			out << "#define o" << index << " color" << std::endl;
+			break;
+		case Semantic::TEXCOORD0_U:
+			out << "#define o" << index << " texcoord0" << std::endl;
+			break;
+		case Semantic::TEXCOORD1_U:
+			out << "#define o" << index << " texcoord1" << std::endl;
+			break;
+		case Semantic::TEXCOORD2_U:
+			out << "#define o" << index << " texcoord2" << std::endl;
+			break;
+		default:
+			return false;
+	}
+	return true;
+}
+
 std::string ToGlsl(const std::array<u32, 1024>& shader_memory, const std::array<u32, 1024>& swizzle_data) {
 	std::stringstream out;
 	out << "#version 110" << std::endl;
-	out << "#define o0 gl_Position" << std::endl;
+	out << "varying vec4 color;" << std::endl;
+	out << "varying vec4 texcoord0;" << std::endl;
+	out << "varying vec4 texcoord1;" << std::endl;
+	out << "varying vec4 texcoord2;" << std::endl;
+	//out << "#define o0 gl_Position" << std::endl;
 	// outputs
-	for (int i = 1; i < 7; i++) {
+	for (int i = 0; i < 7; i++) {
+		if (OutputAttribute(out, i)) continue;
 		out << "varying vec4 o" << i << ";" << std::endl;
 	}
 	// attributes
