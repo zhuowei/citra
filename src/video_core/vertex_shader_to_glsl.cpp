@@ -19,6 +19,7 @@
 
 #include <map>
 #include <cstdio>
+#include <fstream>
 
 using nihstro::Instruction;
 using nihstro::RegisterType;
@@ -187,7 +188,20 @@ std::string ToGlsl(const std::array<u32, 1024>& shader_memory, const std::array<
 
 int CompileGlsl(const std::array<u32, 1024>& shader_memory, const std::array<u32, 1024>& swizzle_data) {
 	std::string vertex_shader = ToGlsl(shader_memory, swizzle_data);
+#ifdef RUN_GLSL_OPTIMIZER
+	std::ofstream outfile("/tmp/asdf.vert");
+	outfile << vertex_shader;
+	outfile.close();
+	system("/media/zhuowei/redhd/docs/repos/glsl-optimizer/build/glslopt -v /tmp/asdf.vert");
+	std::ifstream infile("/tmp/asdf.vert.out");
+	std::stringstream buffer;
+	buffer << infile.rdbuf();
+	infile.close();
+	printf("Shader 2: %s\n", buffer.str().c_str());
+	return ShaderUtil::LoadShaders(buffer.str().c_str(), g_fragment_shader);
+#else
 	return ShaderUtil::LoadShaders(vertex_shader.c_str(), g_fragment_shader);
+#endif
 }
 
 // this is awful.

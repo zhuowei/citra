@@ -12,6 +12,7 @@
 #include "video_core/renderer_opengl/renderer_opengl.h"
 #include "video_core/renderer_opengl/gl_shader_util.h"
 #include "video_core/renderer_opengl/gl_shaders.h"
+#include "video_core/debug_utils/debug_utils.h"
 
 #include <algorithm>
 //#include <dlfcn.h>
@@ -480,26 +481,37 @@ for (int i = 0; i < 3; i++) {
     checkGL(__LINE__);
     printf("Number of vertices: %d\n", registers.num_vertices);
     auto& attribute_config = registers.vertex_attributes;
+    glBindBuffer(GL_ARRAY_BUFFER, vertexBuffers[0]);
+    glBindVertexArray(vertexArrays[0]);
+    size_t bufferPtr = 0;
     for (int i = 0; i < attribute_config.GetNumTotalAttributes(); i++) {
         if (vertexAttribIndex[i] == -1) continue;
-        void* ptr = Memory::GetPointer(PAddrToVAddr(vertex_attribute_sources[i]));
-        glBindBuffer(GL_ARRAY_BUFFER, vertexBuffers[i]);
+        //glBindBuffer(GL_ARRAY_BUFFER, vertexBuffers[i]);
         checkGL(__LINE__);
-        glBufferData(GL_ARRAY_BUFFER, registers.num_vertices * vertex_attribute_strides[i], ptr, GL_STREAM_DRAW);
+        //glBufferData(GL_ARRAY_BUFFER, registers.num_vertices * vertex_attribute_strides[i], ptr, GL_STREAM_DRAW);
         checkGL(__LINE__);
-        glBindVertexArray(vertexArrays[i]);
         checkGL(__LINE__);
 printf("Elements %d Stride %d\n", vertex_attribute_elements[i], vertex_attribute_strides[i]);
         glVertexAttribPointer(vertexAttribIndex[i], vertex_attribute_elements[i], picaToGLFormat(vertex_attribute_formats[i]),
-            GL_FALSE, vertex_attribute_strides[i], nullptr);
+            GL_FALSE, vertex_attribute_strides[i], (void*) bufferPtr);
+        bufferPtr += registers.num_vertices * vertex_attribute_strides[i];
         checkGL(__LINE__);
         glEnableVertexAttribArray(vertexAttribIndex[i]);
         checkGL(__LINE__);
+	//printf("bound %d first value %f\n", i, ((float*)ptr)[0]);
+    }
+    glBufferData(GL_ARRAY_BUFFER, bufferPtr, nullptr, GL_STREAM_DRAW);
+    bufferPtr = 0;
+    for (int i = 0; i < attribute_config.GetNumTotalAttributes(); i++) {
+        if (vertexAttribIndex[i] == -1) continue;
+        void* ptr = Memory::GetPointer(PAddrToVAddr(vertex_attribute_sources[i]));
+        size_t bufferSize = registers.num_vertices * vertex_attribute_strides[i];
+        glBufferSubData(GL_ARRAY_BUFFER, bufferPtr, bufferSize, ptr);
+        bufferPtr += bufferSize;
 	float* asdf = (float*) ptr;
 for (int i = 0; i < 40; i+=vertex_attribute_strides[i]/4 != 0? vertex_attribute_strides[i]/4: 4) {
 	printf("Bound: %f %f %f %f\n", asdf[i], asdf[i+1], asdf[i+2], asdf[i+3]);
 }
-	//printf("bound %d first value %f\n", i, ((float*)ptr)[0]);
     }
     for (int i = 0; i < 96; i++) { // todo: find out which uniforms are actually used
         if (shaderUniforms[i] == -1) continue;
@@ -517,26 +529,37 @@ for (int i = 0; i < 40; i+=vertex_attribute_strides[i]/4 != 0? vertex_attribute_
         checkGL(__LINE__);
         glBindTexture(GL_TEXTURE_2D, shaderTextures[i]);
         checkGL(__LINE__);
-	GLenum type;
-	GLenum format = picaToGLTextureFormat(textures[i].format, &type);
+	//GLenum type;
+	//GLenum format = picaToGLTextureFormat(textures[i].format, &type);
 	void* pointer = Memory::GetPointer(PAddrToVAddr(textures[i].config.GetPhysicalAddress()));
 	printf("Pointer for tex%d: %p %x %x %x\n", i, pointer, ((int*)pointer)[0], ((int*)pointer)[1], ((int*)pointer)[2]);
         checkGL(__LINE__);
-        glTexImage2D(GL_TEXTURE_2D, 0, format, textures[i].config.width, textures[i].config.height, 0, format, type, pointer);
+	Math::Vec4<u8> buffer[textures[i].config.width * textures[i].config.height];
+	u8* source = (u8*) pointer;
+	int index = 0;
+	DebugUtils::TextureInfo info = DebugUtils::TextureInfo::FromPicaRegister(textures[i].config, textures[i].format);
+	for (int y = textures[i].config.height - 1; y >= 0; --y) {
+		for (int x = 0; x < textures[i].config.width; ++x) {
+			buffer[index++] = DebugUtils::LookupTexture(source, x, y, info, false);
+		}
+	}
+        //glTexImage2D(GL_TEXTURE_2D, 0, format, textures[i].config.width, textures[i].config.height, 0, format, type, pointer);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, textures[i].config.width, textures[i].config.height,
+		0, GL_RGBA, GL_UNSIGNED_BYTE, (void*) buffer);
         checkGL(__LINE__);
     }
 glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, tbo);
 glBeginTransformFeedback(GL_TRIANGLES);
     glDrawArrays(picaToGLTopology(registers.triangle_topology.Value()), 0, registers.num_vertices);
 glEndTransformFeedback();
-/*
+#if 0
 glFlush();
-GLfloat feedback[40];
+GLfloat feedback[400];
 glGetBufferSubData(GL_TRANSFORM_FEEDBACK_BUFFER, 0, sizeof(feedback), feedback);
 for (int i = 0; i < 4*registers.num_vertices; i+=4) {
 	printf("Feedback: %f %f %f %f\n", feedback[i], feedback[i+1], feedback[i+2], feedback[i+3]);
 }
-*/
+#endif
     checkGL(__LINE__);
     LOG_INFO(Render_OpenGL, "Frame!");
 }
