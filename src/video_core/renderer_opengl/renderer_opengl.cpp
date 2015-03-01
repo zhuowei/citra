@@ -563,9 +563,13 @@ texed = true;
         checkGL(__LINE__);
     }
 glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, tbo);
+#ifdef OPENGL_ACCEL_DEBUG
 glBeginTransformFeedback(GL_TRIANGLES);
+#endif
     glDrawArrays(picaToGLTopology(registers.triangle_topology.Value()), 0, registers.num_vertices);
+#ifdef OPENGL_ACCEL_DEBUG
 glEndTransformFeedback();
+#endif
 #if 0
 glFlush();
 GLfloat feedback[400];
